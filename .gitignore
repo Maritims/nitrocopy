@@ -1,0 +1,10 @@
+*.txt
+
+# CMake
+*.cmake
+Makefile
+CMakeFiles/
+build/
+
+# Libraries
+*.a
