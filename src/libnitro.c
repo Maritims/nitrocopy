@@ -1,6 +1,7 @@
 #include "libnitro.h"
 #include <errno.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,12 +9,29 @@
 #include <dirent.h>
 
 #define BUFFER_SIZE 4096
+#define ERROR_MSG_SIZE 256
 
 // State holder.
 struct NitroCopyState {
     long long total_size;
     long long bytes_copied;
+    char error_msg[ERROR_MSG_SIZE];
 };
+
+// Private helper function to translate errno to NitroStatus.
+static NitroStatus nitro_status_from_errno(int err_val) {
+    switch(err_val) {
+        case ENOENT:
+        case ENOTDIR:
+        case EISDIR:
+            return NITRO_ERROR_INVALID_PATH;
+        case EACCES:
+        case EPERM:
+            return NITRO_ERROR_PERMISSION_DENIED;
+        default:
+            return NITRO_ERROR_GENERAL;
+    }
+}
 
 // State constructor.
 NitroCopyState* nitro_init() {
@@ -24,6 +42,7 @@ NitroCopyState* nitro_init() {
 
     state->total_size = 0;
     state->bytes_copied = 0;
+    state->error_msg[0] = '\0'; // Initialize error message buffer.
 
     return state;
 }
@@ -35,51 +54,56 @@ void nitro_destroy(NitroCopyState* state) {
     }
 }
 
-void nitro_copy(NitroCopyState* state, const char* src, const char* dest) {
+const char* nitro_get_last_error(const NitroCopyState* state) {
+    if(state == NULL) {
+        return "Invalid state handle";
+    }
+    return state->error_msg;
+}
+
+NitroStatus nitro_copy(NitroCopyState* state, const char* src, const char* dest) {
     struct stat file_stats;
     if(stat(src, &file_stats) == -1) {
-        fprintf(stderr, "Error: Could not get file status for src '%s': %s\n", src, strerror(errno));
-        return;
+        return NITRO_ERROR_OPENING_SRC_FILE;
     }
 
     state->total_size = nitro_get_total_size(src);
     const char* formatted_size = nitro_format_bytes(state->total_size);
-    printf("Total size to copy: %s\n", formatted_size);
+    printf("Total size to copy: %s\n\n", formatted_size);
 
     if(S_ISDIR(file_stats.st_mode)) {
-        nitro_copy_directory(state, src, dest);
+        return nitro_copy_directory(state, src, dest);
     } else {
-        nitro_copy_file(state, src, dest);
+        return nitro_copy_file(state, src, dest);
     }
 
-    printf("\nCopying complete!\n");
+    return NITRO_SUCCESS;
 }
 
-int nitro_copy_file(NitroCopyState* state, const char *src, const char *dest) {
+NitroStatus nitro_copy_file(NitroCopyState* state, const char *src, const char *dest) {
     // Return immediately if the source file doesn't exist.
 	FILE *src_file = fopen(src, "rb");
 	if(!src_file) {
-		fprintf(stderr, "Error: Could not open source file '%s': %s\n", src, strerror(errno));
-		return -1;
+        return NITRO_ERROR_OPENING_SRC_FILE;
 	}
 
     // Create the destination directory if it doesn't exist.
 	struct stat file_stats;
 	if(stat(dest, &file_stats) == 0 && S_ISDIR(file_stats.st_mode)) {
-		fprintf(stderr, "Error: Destination '%s' is a directory. Cannot overwrite with file.\n", dest);
 		fclose(src_file);
-		return -1;
+        return nitro_status_from_errno(errno);
 	}
  
     // Open or create the destination file if it doesn't exist. Any existing content is overwritten.
 	FILE *dest_file = fopen(dest, "wb");
 	if(!dest_file) {
-		fprintf(stderr, "Error: Could not open destination file '%s': %s\n", dest, strerror(errno));
 		fclose(src_file);
-		return -1;
+		return nitro_status_from_errno(errno);
 	}
 
-    printf("\nCopying file %s to %s...\n", src, dest);
+    // Always go one line up to overwrite the total progress.
+    printf("\033[A");
+    printf("Copying file %s to %s...\n", src, dest);
 
     char buffer[BUFFER_SIZE];
     size_t bytes_read;
@@ -92,19 +116,18 @@ int nitro_copy_file(NitroCopyState* state, const char *src, const char *dest) {
         nitro_update_progress(state);
     }
 
+    printf("\n");
+
     fclose(src_file);
     fclose(dest_file);
 
-	return 0;
+	return NITRO_SUCCESS;
 }
 
-void nitro_copy_directory(NitroCopyState* state, const char* src, const char* dest) {
-    printf("Entering directory %s...\n", src);
-
+NitroStatus nitro_copy_directory(NitroCopyState* state, const char* src, const char* dest) {
     DIR *dir_to_copy = opendir(src);
     if(!dir_to_copy) {
-        fprintf(stderr, "Error: Could not open source directory '%s': %s\n", src, strerror(errno));
-        return;
+        return nitro_status_from_errno(errno);
     }
 
     // Reusable struct for controlling the file system status of different directories and files.
@@ -112,18 +135,17 @@ void nitro_copy_directory(NitroCopyState* state, const char* src, const char* de
 
     if(stat(dest, &file_stats) == -1) {
         if(mkdir(dest, 0755) == -1) {
-            fprintf(stderr, "Error: Could not create destination directory '%s': %s\n", dest, strerror(errno));
             closedir(dir_to_copy);
-            return;
+            return nitro_status_from_errno(errno);
         }
     } else if(!S_ISDIR(file_stats.st_mode)) {
-        fprintf(stderr, "Error: Destination '%s' is not a directory.\n", dest);
         closedir(dir_to_copy);
-        return;
+        return NITRO_ERROR_INVALID_PATH;
     }
 
     // Reusable struct for holding entires in the directory currently being copied.
     struct dirent *file_entry;
+    NitroStatus current_status;
 
     while ((file_entry = readdir(dir_to_copy)) != NULL) {
         if(strcmp(file_entry->d_name, ".") == 0 || strcmp(file_entry->d_name, "..") == 0) {
@@ -142,13 +164,18 @@ void nitro_copy_directory(NitroCopyState* state, const char* src, const char* de
         }
 
         if(S_ISDIR(file_stats.st_mode)) {
-            nitro_copy_directory(state, entry_source_path, entry_destination_path);
+            current_status = nitro_copy_directory(state, entry_source_path, entry_destination_path);
         } else {
-            nitro_copy_file(state, entry_source_path, entry_destination_path);
+            current_status = nitro_copy_file(state, entry_source_path, entry_destination_path);
+        }
+
+        if(current_status != NITRO_SUCCESS) {
+            break;
         }
     }
 
     closedir(dir_to_copy);
+    return current_status;
 }
 
 long long nitro_get_total_size(const char* src) {
@@ -200,7 +227,9 @@ void nitro_update_progress(NitroCopyState* state) {
     const char* formatted_bytes_copied = nitro_format_bytes(state->bytes_copied);
     const char* formatted_total_size = nitro_format_bytes(state->total_size);
 
-    printf("\rTotal progress: %d%% (%s/%s)", progress, formatted_bytes_copied, formatted_total_size);
+    // Clear this line before printing the total progress.
+    printf("\033[K");
+    printf("Total progress: %d%% (%s/%s)", progress, formatted_bytes_copied, formatted_total_size);
     fflush(stdout);
 }
 
@@ -217,7 +246,7 @@ char* nitro_format_bytes(long long bytes) {
     i = (int)floor(log(bytes) / log(1024));
     i = (i < 0) ? 0 : i;
 
-    if(i >= sizeof(suffixes) / sizeof(suffixes[0])) {
+    if((unsigned long) i >= sizeof(suffixes) / sizeof(suffixes[0])) {
         i = sizeof(suffixes) / sizeof(suffixes[0]) - 1;
     }
 
