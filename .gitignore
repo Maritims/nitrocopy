@@ -1,10 +1,10 @@
 *.txt
 
 # CMake
-*.cmake
 Makefile
 CMakeFiles/
 build/
+build-win32/
 
 # Libraries
 *.a
