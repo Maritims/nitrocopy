@@ -30,6 +30,5 @@ NitroStatus nitro_copy_directory(NitroCopyState* state, const char* src, const c
 NitroStatus nitro_get_total_stats(const char* path, long long* total_size, long long* file_count);
 void nitro_update_progress(NitroCopyState* state);
 char* nitro_format_bytes(long long bytes);
-const char* nitro_get_last_error(const NitroCopyState* state);
 
 #endif
