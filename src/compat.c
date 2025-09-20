@@ -11,11 +11,14 @@
 
 DIR* compat_opendir(const char* path) {
 #if defined(_WIN32)
-    DIR* dir = (DIR*)malloc(sizeof(DIR));
+    DIR* dir;
+    char search_path[MAX_PATH];
+    
+    dir = (DIR*)malloc(sizeof(DIR));
     if(!dir) {
         return NULL;
     }
-    char search_path[MAX_PATH];
+
     snprintf(search_path, sizeof(search_path), "%s\\*", path);
     dir->handle = FindFirstFile(search_path, &(dir->find_data));
     dir->is_first_entry = 1;
