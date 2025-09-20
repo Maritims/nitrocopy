@@ -4,6 +4,22 @@ project(NitroCopy
     LANGUAGES   C
 )
 
+# -----------------------------------------------
+# Determine Git-based version
+# -----------------------------------------------
+execute_process(
+    COMMAND git describe --tags --always
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Fallback to project version if Git info is unavailable
+if(NOT GIT_VERSION)
+    set(GIT_VERSION ${PROJECT_VERSION})
+endif()
+
+message(STATUS "Using version: ${GIT_VERSION}")
 
 # -----------------------------------------------
 # Compiler settings
@@ -62,3 +78,13 @@ target_link_libraries(NitroCopy PRIVATE m)
 if (WIN32)
     target_link_options(NitroCopy PRIVATE -static -static-libgcc -static-libstdc++)
 endif()
+
+# -----------------------------------------------
+# Custom target for tagging releases
+# -----------------------------------------------
+add_custom_target(tag_release
+    COMMAND git tag -a v${PROJECT_VERSION} -m "Release v${PROJECT_VERSION}"
+    COMMAND git push --tags
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Tagging release v${PROJECT_VERSION}"
+)
