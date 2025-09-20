@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.12)
-project(NitroCopy C)
+project(NitroCopy
+    VERSION     0.0.1
+    LANGUAGES   C
+)
+
 
 # -----------------------------------------------
 # Compiler settings
@@ -29,6 +33,18 @@ set(CMAKE_C_FLAGS_RELEASE "-O2")                # Optimise for speed.
 # Include directories
 # -----------------------------------------------
 include_directories(${CMAKE_SOURCE_DIR}/include)
+
+# -----------------------------------------------
+# Generate version header
+# -----------------------------------------------
+configure_file(
+    ${CMAKE_SOURCE_DIR}/include/nitro_version.h.in
+    ${CMAKE_BINARY_DIR}/include/nitro_version.h
+    @ONLY
+)
+
+# Include generated headers
+include_directories(${CMAKE_BINARY_DIR}/include)
 
 # -----------------------------------------------
 # Source files
