@@ -102,13 +102,7 @@ void nitro_clear_line(int previous_line_length) {
     
     if(previous_line_length > 0) {
         rows = (previous_line_length + line_width - 1) / line_width;
-        if(rows > 1) {
-            _nitro_move_cursor_up(rows);
-            _nitro_clear_from_cursor_down();
-        }
+        _nitro_move_cursor_up(rows);
+        _nitro_clear_from_cursor_down();
     }
 }
-
-
-
-

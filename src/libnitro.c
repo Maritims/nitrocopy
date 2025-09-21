@@ -116,7 +116,7 @@ NitroStatus nitro_copy(NitroCopyState* state, const char* src, const char* dest)
 
     formatted_bytes_copied = nitro_format_bytes(state->bytes_copied);
 
-    printf("\nFinished copying files: %lu/%lu (%s/%s, %s)\n\n", state->files_processed, state->total_files, formatted_bytes_copied, formatted_size, options);
+    printf("Finished copying files: %lu/%lu (%s/%s, %s)\n\n", state->files_processed, state->total_files, formatted_bytes_copied, formatted_size, options);
 
     return NITRO_SUCCESS;
 }
@@ -172,7 +172,6 @@ NitroStatus nitro_copy_file(NitroCopyState* state, const char *src, const char *
 
     state->files_processed++;
 
-    /* Save the cursor position before we start printing progress messages. */
     while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {
         unsigned int    progress;
         const char*     formatted_bytes_copied;
@@ -199,7 +198,10 @@ NitroStatus nitro_copy_file(NitroCopyState* state, const char *src, const char *
         previous_length = strlen(current_line);
     }
 
+#if defined(_WIN32)
+#else
     printf("\n");
+#endif
 
     fclose(src_file);
     fclose(dest_file);
