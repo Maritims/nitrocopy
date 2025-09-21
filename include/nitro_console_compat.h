@@ -1,6 +1,11 @@
-#ifndef NITRO_CONSOLE_H
-#define NITRO_CONSOLE_H
+#ifndef NITRO_CONSOLE_COMPAT_H
+#define NITRO_CONSOLE_COMPAT_H
 
-void nitro_console_clear_line(void);
+int nitro_get_console_width(void);
+
+void nitro_clear_line(int previous_line_length);
+
+void nitro_reset_cursor(void);
+
 
 #endif

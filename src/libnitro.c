@@ -127,6 +127,7 @@ NitroStatus nitro_copy_file(NitroCopyState* state, const char *src, const char *
     FILE        *dest_file;
     char        buffer[BUFFER_SIZE];
     size_t      bytes_read;
+    size_t      previous_length;
 
     src_file = fopen(src, "rb");
 	if(!src_file) {
@@ -171,10 +172,12 @@ NitroStatus nitro_copy_file(NitroCopyState* state, const char *src, const char *
 
     state->files_processed++;
 
+    /* Save the cursor position before we start printing progress messages. */
     while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {
         unsigned int    progress;
         const char*     formatted_bytes_copied;
         const char*     formatted_total_size;
+        char            current_line[BUFFER_SIZE];
 
         if(fwrite(buffer, 1, bytes_read, dest_file) != bytes_read) {
             fprintf(stderr, "Failed to write to destination file \"%s\": %d (%s)\n", dest, errno, strerror(errno));
@@ -186,8 +189,14 @@ NitroStatus nitro_copy_file(NitroCopyState* state, const char *src, const char *
         formatted_bytes_copied  = nitro_format_bytes(state->bytes_copied);
         formatted_total_size    = nitro_format_bytes(state->total_size);
 
-        nitro_console_clear_line();
-        printf("\rCopying file %lu/%lu: %s -> %s (%3d%%, %s/%s)", state->files_processed, state->total_files, src, dest, progress, formatted_bytes_copied, formatted_total_size);
+        nitro_clear_line(previous_length);
+
+        snprintf(current_line, sizeof(current_line), "Copying file %lu/%lu: %s -> %s (%3d%%, %s/%s)", state->files_processed, state->total_files, src, dest, progress, formatted_bytes_copied, formatted_total_size);
+
+
+        printf("%s\n", current_line);
+        fflush(stdout);
+        previous_length = strlen(current_line);
     }
 
     printf("\n");
@@ -310,10 +319,11 @@ void nitro_update_progress(NitroCopyState* state) {
     formatted_bytes_copied  = nitro_format_bytes(state->bytes_copied);
     formatted_total_size    = nitro_format_bytes(state->total_size);
 
-    /* Clear this line before printing the total progress. */
-    nitro_console_clear_line();
+    
+    nitro_clear_line(0);
+    nitro_reset_cursor();
+
     printf("\rTotal progress: %d%% (%s/%s)\n", progress, formatted_bytes_copied, formatted_total_size);
-    printf("\033[A");
     fflush(stdout);
 }
 

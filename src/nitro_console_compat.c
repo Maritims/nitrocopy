@@ -1,38 +1,136 @@
+#include <stdarg.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "nitro_console_compat.h"
 
 #if defined(_WIN32)
     #include <windows.h>
+#else
+    #include <sys/ioctl.h>
 #endif
 
-void nitro_console_clear_line(void) {
+int nitro_get_console_width(void) {
 #if defined(_WIN32)
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    DWORD written;
-    DWORD cells;
-    COORD cursor;
+    HANDLE                      hConsole;
+    CONSOLE_SCREEN_BUFFER_INFO  csbi;
+    int                         rows;
+    
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    if(hConsole == NULL) {
+        return 1;
+    }
+
+    if(!GetConsoleScreenBufferInfo(hConsole, &csbi)) {
+        return 1;
+    }
+
+    return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#else
+    struct winsize ws;
+
+    if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1) {
+        perror("ioctl");
+        return 1;
+    }
+
+    return ws.ws_col;
+#endif
+}
+
+static void _nitro_move_cursor_up(int rows) {
+#if defined(_WIN32)
+    HANDLE                      hConsole;
+    CONSOLE_SCREEN_BUFFER_INFO  csbi;
+    COORD                       cursor;
+
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    if(hConsole == NULL) {
+        return;
+    }
 
     if(!GetConsoleScreenBufferInfo(hConsole, &csbi)) {
         return;
     }
 
-    /* This is where we are right now. */
     cursor = csbi.dwCursorPosition;
+    cursor.Y -= rows;
+    if(cursor.Y < 0) {
+        cursor.Y = 0;
+    }
 
-    /* This is the number of characters to clear. */
-    cells = csbi.dwSize.X - cursor.X;
-
-    /* Clear the characters. */
-    FillConsoleOutputCharacter(hConsole, ' ', cells, cursor, &written);
-
-    /* Reset the attributes. */
-    FillConsoleOutputAttribute(hConsole, csbi.wAttributes, cells, cursor, &written);
-
-    /* Move back to where we were. */
     SetConsoleCursorPosition(hConsole, cursor);
 #else
-    printf("\033[K");
-    fflush(stdout);
+    int row;
+    for(row = 0; row < rows; row++) {
+        printf("\033[A");
+    }
 #endif
 }
+
+static void _nitro_clear_from_cursor_down(void) {
+#if defined(_WIN32)
+    HANDLE                      hConsole;
+    CONSOLE_SCREEN_BUFFER_INFO  csbi;
+    COORD                       cursor;
+    DWORD                       cells;
+    DWORD                       written;
+
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    if(hConsole == NULL) {
+        return;
+    }
+
+    if(!GetConsoleScreenBufferInfo(hConsole, &csbi)) {
+        return;
+    }
+
+    cursor = csbi.dwCursorPosition;
+    cells = (csbi.dwSize.Y - cursor.Y) * csbi.dwSize.X;
+
+    FillConsoleOutputCharacter(hConsole, ' ', cells, cursor, &written);
+    FillConsoleOutputAttribute(hConsole, csbi.wAttributes, cells, cursor, &written);
+#else
+    printf("\033[J");
+#endif
+}
+
+void nitro_clear_line(int previous_line_length) {
+    int line_width;
+    int rows;
+
+    line_width = nitro_get_console_width();
+    
+    if(previous_line_length > 0) {
+        rows = (previous_line_length + line_width - 1) / line_width;
+        if(rows > 1) {
+            _nitro_move_cursor_up(rows);
+            _nitro_clear_from_cursor_down();
+        }
+    }
+}
+
+void nitro_reset_cursor(void) {
+#if defined(_WIN32)
+    HANDLE                      hConsole;
+    CONSOLE_SCREEN_BUFFER_INFO  csbi;
+
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    if(hConsole == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    if(!GetConsoleScreenBufferInfo(hConsole, &csbi)) {
+        return;
+    }
+
+    csbi.dwCursorPosition.X = 0;
+    csbi.dwCursorPosition.Y = csbi.dwCursorPosition.Y - 1;
+
+    SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+#else
+    printf("\r");
+#endif
+}
+
+
+
