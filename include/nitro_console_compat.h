@@ -5,7 +5,4 @@ int nitro_get_console_width(void);
 
 void nitro_clear_line(int previous_line_length);
 
-void nitro_reset_cursor(void);
-
-
 #endif

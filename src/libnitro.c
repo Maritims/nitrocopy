@@ -321,7 +321,6 @@ void nitro_update_progress(NitroCopyState* state) {
 
     
     nitro_clear_line(0);
-    nitro_reset_cursor();
 
     printf("\rTotal progress: %d%% (%s/%s)\n", progress, formatted_bytes_copied, formatted_total_size);
     fflush(stdout);

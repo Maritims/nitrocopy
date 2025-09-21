@@ -109,28 +109,6 @@ void nitro_clear_line(int previous_line_length) {
     }
 }
 
-void nitro_reset_cursor(void) {
-#if defined(_WIN32)
-    HANDLE                      hConsole;
-    CONSOLE_SCREEN_BUFFER_INFO  csbi;
-
-    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    if(hConsole == INVALID_HANDLE_VALUE) {
-        return;
-    }
-
-    if(!GetConsoleScreenBufferInfo(hConsole, &csbi)) {
-        return;
-    }
-
-    csbi.dwCursorPosition.X = 0;
-    csbi.dwCursorPosition.Y = csbi.dwCursorPosition.Y - 1;
-
-    SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-#else
-    printf("\r");
-#endif
-}
 
 
 
