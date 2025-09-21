@@ -9,7 +9,7 @@
     #include <sys/ioctl.h>
 #endif
 
-int nitro_get_console_width(void) {
+static int _nitro_get_console_width(void) {
 #if defined(_WIN32)
     HANDLE                      hConsole;
     CONSOLE_SCREEN_BUFFER_INFO  csbi;
@@ -98,7 +98,7 @@ void nitro_clear_line(int previous_line_length) {
     int line_width;
     int rows;
 
-    line_width = nitro_get_console_width();
+    line_width = _nitro_get_console_width();
     
     if(previous_line_length > 0) {
         rows = (previous_line_length + line_width - 1) / line_width;
