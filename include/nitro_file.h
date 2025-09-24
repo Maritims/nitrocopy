@@ -1,5 +1,5 @@
-#ifndef COMPAT_H
-#define COMPAT_H
+#ifndef NITRO_FILE_COMPAT_H
+#define NITRO_FILE_COMPAT_H
 
 #include <stdio.h>
 #include <sys/stat.h>
@@ -22,10 +22,14 @@ typedef struct {
 #include <dirent.h>
 #endif
 
-DIR* compat_opendir(const char* path);
-struct dirent* compat_readdir(DIR* dir);
-int compat_closedir(DIR* dir);
-int compat_mkdir(const char* path, int mode);
-int compat_get_file_stats(const char* path, struct stat* file_stats);
+DIR* nitro_file_opendir(const char* path);
+
+struct dirent* nitro_file_readdir(DIR* dir);
+
+int nitro_file_closedir(DIR* dir);
+
+int nitro_file_mkdir(const char* path, int mode);
+
+int nitro_file_stat(const char* path, struct stat* file_stats);
 
 #endif

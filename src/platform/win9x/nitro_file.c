@@ -1,16 +1,13 @@
-#include "compat.h"
+#include "nitro_file.h"
 
-#if defined(_WIN32)
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <windows.h>
 #include <io.h>
 #include <sys/stat.h>
-#else
-#include <dirent.h>
-#include <unistd.h>
-#endif
 
-DIR* compat_opendir(const char* path) {
-#if defined(_WIN32)
+DIR* nitro_file_opendir(const char* path) {
     DIR* dir;
     char search_path[MAX_PATH];
     
@@ -27,17 +24,13 @@ DIR* compat_opendir(const char* path) {
         return NULL;
     }
     return dir;
-#else
-    return opendir(path);
-#endif
 }
 
-struct dirent* compat_readdir(DIR* dir) {
+struct dirent* nitro_file_readdir(DIR* dir) {
     if(!dir) {
         return NULL;
     }
 
-#if defined(_WIN32)
     while (dir->is_first_entry || FindNextFile(dir->handle, &(dir->find_data))) {
         dir->is_first_entry = 0;
 
@@ -51,28 +44,32 @@ struct dirent* compat_readdir(DIR* dir) {
     }
 
     return NULL;
-#else
-    return readdir(dir);
-#endif
 }
 
-int compat_closedir(DIR* dir) {
+int nitro_file_closedir(DIR* dir) {
     if(!dir) {
-       return -1;
+        return -1;
     }
-#if defined(_WIN32)
+
     FindClose(dir->handle);
     free(dir);
     return 0;
-#else
-    return closedir(dir);
-#endif
 }
 
-int compat_mkdir(const char* path, int mode) {
-#if defined(_WIN32)
+int nitro_file_mkdir(const char* path, int mode) {
     return mkdir(path);
-#else
-    return mkdir(path, mode);
-#endif
+}
+
+int nitro_file_stat(const char* path, struct stat* file_stats) {
+    /* Make sure we use the correct struct type. */
+    struct _stat64i32 win_stats;
+    if(_stat64i32(path, &win_stats) != 0) {
+        return 1;
+    }
+
+    /* Manually copy the relevant fields. */
+    file_stats->st_mode = win_stats.st_mode;
+    file_stats->st_size = win_stats.st_size;
+
+    return 0;
 }

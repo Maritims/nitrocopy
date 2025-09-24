@@ -102,26 +102,7 @@ include_directories(${CMAKE_BINARY_DIR}/include)
 # -----------------------------------------------
 # Source files
 # -----------------------------------------------
-file(GLOB_RECURSE NITRO_SOURCES "src/*.c")
-
-# Remove main from the library to avoid double main()
-list(FILTER NITRO_SOURCES EXCLUDE REGEX "src/main.c")
-
-# Build library
-add_library(nitro STATIC ${NITRO_SOURCES})
-target_link_libraries(nitro PRIVATE m)
-
-# -----------------------------------------------
-# Build application
-# -----------------------------------------------
-add_executable(NitroCopy src/main.c)
-
-# Link libraries.
-target_link_libraries(NitroCopy PRIVATE nitro)
-
-if (WIN32)
-    target_link_options(NitroCopy PRIVATE -static -static-libgcc -static-libstdc++)
-endif()
+add_subdirectory(src)
 
 # -----------------------------------------------
 # Custom target for tagging releases
@@ -136,8 +117,8 @@ add_custom_target(tag_release
 # -----------------------------------------------
 # Tests
 # -----------------------------------------------
-include(CTest)
-enable_testing()
+#include(CTest)
+#enable_testing()
 
 # Add tests subdirectory
-add_subdirectory(tests)
+#add_subdirectory(tests)

@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 #include <getopt.h>
 #include "libnitro.h"
-#include "nitro_runtime.h"
+#include "nitro_logging.h"
 #include "nitro_version.h"
 
 int main(int argc, char *argv[]) {
@@ -15,20 +15,16 @@ int main(int argc, char *argv[]) {
 
     static struct option long_options[] = {
         {"overwrite", no_argument, 0, 'o'},
-        {"verbose", no_argument, 0, 'v'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
 
-    while ((opt = getopt_long(argc, argv, "ovVh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "oh", long_options, NULL)) != -1) {
         switch(opt) {
             case 'o':
                 overwrite = 1;
             break;
             case 'v':
-                nitro_verbose = 1;
-            break;
-            case 'V':
                 printf("NitroCopy version: %s\nhttps://github.com/maritims/nitrocopy\n\nWritten by Martin Severin Steffensen.\n", NITRO_VERSION_STRING);
                 return 0;
             case 'h':
@@ -36,8 +32,7 @@ int main(int argc, char *argv[]) {
                 printf("Usage: NitroCopy [OPTIONS] <source_path> <destination_path>\n");
                 printf("Options:\n");
                 printf("    -o, --overwrite     Overwrite destination files without prompting.\n");
-                printf("    -v, --verbose       Enable verbose logging.\n");
-                printf("    -V, --version       Show version.\n");
+                printf("    -v, --version       Show version.\n");
                 printf("    -h, --help          Display this help message and exit.\n");
 
                 printf("\nFor more information:\n");
@@ -64,6 +59,8 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Use %s --help for usage information.\n", argv[0]);
         return 1;
     }
+
+    printf("NitroCopy %s - (overwrite: %d)\n\n", NITRO_VERSION_STRING, overwrite);
 
     state = nitro_init(overwrite);
     if(state == NULL) {
