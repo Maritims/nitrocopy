@@ -117,8 +117,8 @@ add_custom_target(tag_release
 # -----------------------------------------------
 # Tests
 # -----------------------------------------------
-#include(CTest)
-#enable_testing()
+include(CTest)
+enable_testing()
 
 # Add tests subdirectory
-#add_subdirectory(tests)
+add_subdirectory(tests)

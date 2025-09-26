@@ -1,19 +1,20 @@
+#include "logging.h"
+
 #include <stdarg.h>
 #include <stdio.h>
-#include "nitro_logging.h"
 #include <time.h>
 
-#ifndef NITRO_LOG_LEVEL
-    #define NITRO_LOG_LEVEL NITRO_LOG_LEVEL_DEBUG
+#ifndef LOG_LEVEL
+    #define LOG_LEVEL LOG_LEVEL_DEBUG
 #endif
 
-static void nitro_log_msg(int level, const char* format, va_list args) {
+static void log_msg(int level, const char* format, va_list args) {
     time_t      rawtime;
     struct tm*  info;
-    char        timestamp[30];
+    char        timestamp[72];
     const char* level_str;
 
-    if(level > NITRO_LOG_LEVEL) {
+    if(level > LOG_LEVEL) {
         return;
     }
 
@@ -30,19 +31,19 @@ static void nitro_log_msg(int level, const char* format, va_list args) {
     );
 
     switch(level) {
-        case NITRO_LOG_LEVEL_FATAL:
+        case LOG_LEVEL_FATAL:
             level_str = "FATAL";
         break;
-        case NITRO_LOG_LEVEL_ERROR:
+        case LOG_LEVEL_ERROR:
             level_str = "ERROR";
         break;
-        case NITRO_LOG_LEVEL_WARN:
+        case LOG_LEVEL_WARN:
             level_str = "WARN";
         break;
-        case NITRO_LOG_LEVEL_INFO:
+        case LOG_LEVEL_INFO:
             level_str = "INFO";
         break;
-        case NITRO_LOG_LEVEL_DEBUG:
+        case LOG_LEVEL_DEBUG:
             level_str = "DEBUG";
         break;
     }
@@ -51,38 +52,38 @@ static void nitro_log_msg(int level, const char* format, va_list args) {
     vprintf(format, args);
 }
 
-void nitro_log_fatal(const char* format, ...) {
+void log_fatal(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    nitro_log_msg(NITRO_LOG_LEVEL_FATAL, format, args);
+    log_msg(LOG_LEVEL_FATAL, format, args);
     va_end(args);
 }
 
-void nitro_log_error(const char* format, ...) {
+void log_error(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    nitro_log_msg(NITRO_LOG_LEVEL_ERROR, format, args);
+    log_msg(LOG_LEVEL_ERROR, format, args);
     va_end(args);
 }
 
-void nitro_log_warn(const char* format, ...) {
+void log_warn(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    nitro_log_msg(NITRO_LOG_LEVEL_WARN, format, args);
+    log_msg(LOG_LEVEL_WARN, format, args);
     va_end(args);
 }
 
-void nitro_log_info(const char* format, ...) {
+void log_info(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    nitro_log_msg(NITRO_LOG_LEVEL_INFO, format, args);
+    log_msg(LOG_LEVEL_INFO, format, args);
     va_end(args);
 }
 
-void nitro_log_debug(const char* format, ...) {
+void log_debug(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    nitro_log_msg(NITRO_LOG_LEVEL_DEBUG, format, args);
+    log_msg(LOG_LEVEL_DEBUG, format, args);
     va_end(args);
 }
 

@@ -1,4 +1,4 @@
-#include "nitro_file.h"
+#include "file.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +7,7 @@
 #include <io.h>
 #include <sys/stat.h>
 
-DIR* nitro_file_opendir(const char* path) {
+DIR* compat_opendir(const char* path) {
     DIR* dir;
     char search_path[MAX_PATH];
     
@@ -26,7 +26,7 @@ DIR* nitro_file_opendir(const char* path) {
     return dir;
 }
 
-struct dirent* nitro_file_readdir(DIR* dir) {
+struct dirent* compat_readdir(DIR* dir) {
     if(!dir) {
         return NULL;
     }
@@ -46,7 +46,7 @@ struct dirent* nitro_file_readdir(DIR* dir) {
     return NULL;
 }
 
-int nitro_file_closedir(DIR* dir) {
+int compat_closedir(DIR* dir) {
     if(!dir) {
         return -1;
     }
@@ -56,11 +56,11 @@ int nitro_file_closedir(DIR* dir) {
     return 0;
 }
 
-int nitro_file_mkdir(const char* path, int mode) {
+int compat_mkdir(const char* path, int mode) {
     return mkdir(path);
 }
 
-int nitro_file_stat(const char* path, struct stat* file_stats) {
+int compat_stat(const char* path, struct stat* file_stats) {
     /* Make sure we use the correct struct type. */
     struct _stat64i32 win_stats;
     if(_stat64i32(path, &win_stats) != 0) {

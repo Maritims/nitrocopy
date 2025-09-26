@@ -1,6 +1,6 @@
 function(add_c_test name)
     add_executable(${name} ${name}.c)
-    target_link_libraries(${name} PRIVATE nitro)
+    target_link_libraries(${name} PRIVATE copier)
 
     if(UNIX AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
         # Cross build: use wine to run Win32 tests
@@ -11,4 +11,4 @@ function(add_c_test name)
     endif()
 endfunction()
 
-add_c_test(cursor_test)
+add_c_test(test_copy_process_init_should_return_with_initialised_members)

@@ -1,17 +1,18 @@
+#include "copier.h"
+#include "nitro_version.h"
+#include "copy_process.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <getopt.h>
-#include "libnitro.h"
-#include "nitro_logging.h"
-#include "nitro_version.h"
 
 int main(int argc, char *argv[]) {
     int opt;
     int overwrite           = 0;
     char* src_path          = NULL;
     char* dest_path         = NULL;
-    NitroCopyState* state   = NULL;
+    copy_process_t* state   = NULL;
 
     static struct option long_options[] = {
         {"overwrite", no_argument, 0, 'o'},
@@ -62,10 +63,10 @@ int main(int argc, char *argv[]) {
 
     printf("NitroCopy %s - (overwrite: %d)\n\n", NITRO_VERSION_STRING, overwrite);
 
-    state = nitro_init(overwrite);
+    state = copy_process_init(overwrite);
     if(state == NULL) {
         return 1;
     }
 
-    return nitro_copy(state, src_path, dest_path);
+    return copier_copy(src_path, dest_path, state);
 }

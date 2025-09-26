@@ -1,14 +1,13 @@
-#include "nitro_console.h"
+#include "console.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <windows.h>
 
-int nitro_console_get_width(void) {
+int console_get_width(void) {
     HANDLE                      hConsole;
     CONSOLE_SCREEN_BUFFER_INFO  csbi;
-    int                         rows;
     
     hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     if(hConsole == NULL) {
@@ -22,7 +21,7 @@ int nitro_console_get_width(void) {
     return csbi.srWindow.Right - csbi.srWindow.Left + 1;
 }
 
-void nitro_console_move_cursor_up(int rows) {
+void console_move_cursor_up(int rows) {
     HANDLE                      hConsole;
     CONSOLE_SCREEN_BUFFER_INFO  csbi;
     COORD                       cursor;
@@ -45,7 +44,7 @@ void nitro_console_move_cursor_up(int rows) {
     SetConsoleCursorPosition(hConsole, cursor);
 }
 
-void nitro_console_clear_from_cursor_down(void) {
+void console_clear_from_cursor_down(void) {
     HANDLE                      hConsole;
     CONSOLE_SCREEN_BUFFER_INFO  csbi;
     COORD                       cursor;
