@@ -1,7 +1,7 @@
 #include "copier.h"
-#include "copy_process.h"
 #include "file.h"
 #include "logging.h"
+#include "runtime.h"
 
 #include <errno.h>
 #include <math.h>
@@ -12,17 +12,15 @@
 #include <time.h>
 
 #define BUFFER_SIZE 4096
-#define ERROR_MSG_SIZE 256
 
-static char* copier_format_bytes(size_t bytes) {
-    char* s = (char*)malloc(sizeof(char) * 20);
+static void format_bytes(size_t bytes, char* buffer) {
     const char* suffixes[] = {"B", "KB", "MB", "GB"};
     int i = 0;
     double value;
 
     if(bytes == 0) {
-        sprintf(s, "0 B");
-        return s;
+        sprintf(buffer, "0 B");
+        return;
     }
 
     i = (int)floor(log(bytes) / log(1024));
@@ -33,54 +31,158 @@ static char* copier_format_bytes(size_t bytes) {
     }
 
     value = (double)bytes / pow(1024, i);
-    sprintf(s, "%.2f %s", value, suffixes[i]);
-
-    return s;
+    sprintf(buffer, "%.2f %s", value, suffixes[i]);
 }
 
-int copier_copy(const char* src, const char* dest, copy_process_t* copy_process) {
-    struct stat file_stats;
-    char        options[64];
-    const char* formatted_size;
-    const char* formatted_bytes_copied;
+/**
+ * copier_overwrite: Checks whether a file can be and will be overwritten.
+ * @dest: The path to the file that may or may not be overwritten.
+ * @copy_process: A pointer to the current copy process (cannot be NULL).
+ *
+ * Returns a code indicating whether the file should be overwritten:
+ * 0 = The file should be overwritten.
+ * 1 = The file should not be overwritten, or overwriting is not enabled in the ongoing copy process.
+ * 2 = No stats could be retrieved for the destination path.
+ * 3 = The destination path represents a dir, not a file.
+ */
+static int determine_overwrite(const char* dest) {
+    struct stat stats;
 
-    if(compat_stat(src, &file_stats) != 0) {
-        log_fatal("Failed to open src file \"%s\": %d (%s)\n", src, errno, strerror(errno));
+    if(overwrite == 1) {
+        return 0;
+    }
+
+    if(compat_stat(dest, &stats) != 0) {
+        return 0;
+    }
+        
+    if(S_ISDIR(stats.st_mode)) {
+        fprintf(stderr, "Dest %s is dir\n", dest);
+        return -1;
+    }
+
+    while(1) {
+        char response[4];
+
+        printf("Destination file \"%s\" exists already. Overwrite? (y/n): ", dest);
+        fflush(stdout);
+
+    
+        if(fgets(response, sizeof(response), stdin) != NULL) {
+            if(response[0] == 'y' || response[0] == 'Y') {
+                return 0;
+            }
+
+            if(response[0] == 'n' || response[0] == 'N') {
+                return 1;
+            }
+        }
+
+        fprintf(stderr, "Invalid input. Please enter 'y' or 'n'.\n");
+    }
+}
+
+int copier_copy(const char* src, const char* dest, size_t total_files, size_t total_bytes, size_t* total_files_copied, size_t* total_bytes_copied) {
+    size_t      total_progress  = 0;
+    size_t      bytes_copied    = 0;
+    char        formatted_bytes_copied[256];
+    char        formatted_total_bytes[256];
+
+    struct stat     stats;
+    struct dirent*  src_file;
+    DIR*            src_dir;
+
+    if(compat_stat(src, &stats) != 0) {
+        fprintf(stderr, "Failed to acquire stats for %s: %d (%s)\n", src, errno, strerror(errno));
         return 1;
     }
 
-    if(copy_process_get_overwrite(copy_process) == 1) {
-        sprintf(options, "overwrite = yes");
-    } else {
-        sprintf(options, "overwrite = no");
-    }
-
-    log_info("Counting total number of files to copy...\n");
-    copier_get_total_stats(src, copy_process);
-    formatted_size = copier_format_bytes(copy_process_get_total_size(copy_process));
-    log_info("Counted %lu files (%s)\n", copy_process_get_total_files(copy_process), formatted_size);
-
-    if(S_ISDIR(file_stats.st_mode)) {
-        int status = copier_copy_dir(src, dest, copy_process);
-        if(status != 0) {
-            return status;
+    if(S_ISDIR(stats.st_mode)) {
+        src_dir = compat_opendir(src);
+        if(!src_dir) {
+            fprintf(stderr, "Failed to open src dir %s: %d (%s)\n", src, errno, strerror(errno));
+            return 1;
         }
+
+        if(compat_stat(dest, &stats) != 0 && compat_mkdir(dest, 0755) == -1) {
+            compat_closedir(src_dir);
+            fprintf(stderr, "Failed to create directory %s: %d (%s)\n", dest, errno, strerror(errno));
+            return 1;
+        }
+
+        while((src_file = compat_readdir(src_dir)) != NULL) {
+            char foo[1024];
+            char bar[1024];
+
+            if(strcmp(src_file->d_name, ".") == 0 || strcmp(src_file->d_name, "..") == 0) {
+                continue;
+            }
+
+            sprintf(foo, "%s/%s", src, src_file->d_name);
+            sprintf(bar, "%s/%s", dest, src_file->d_name);
+
+            if(copier_copy(foo, bar, total_files, total_bytes, total_files_copied, total_bytes_copied) != 0) {
+                return 1;
+            }
+        }
+
+        free(src_dir);
     } else {
-        int status = copier_copy_file(src, dest, copy_process);
-        if(status != 0) {
-            return status;
+        *total_files_copied += 1;
+
+        log_info("Copying file %lu/%lu: %s -> %s\n", *total_files_copied, total_files, src, dest);
+
+        if((bytes_copied = copier_copy_file(src, dest)) >= 0) {
+            *total_bytes_copied += bytes_copied;
+
+            total_progress = *total_bytes_copied == 0 ? 0 : (int)((double) *total_bytes_copied / (double) total_bytes * 100.0);
+        
+            format_bytes(*total_bytes_copied, formatted_bytes_copied);
+            format_bytes(total_bytes, formatted_total_bytes);
+
+            log_info("-> Total progress: %3d%%, %s/%s\n\n", total_progress, formatted_bytes_copied, formatted_total_bytes);
+        } else {
+            return 1;
         }
     }
-
-    formatted_bytes_copied = copier_format_bytes(copy_process_get_bytes_copied(copy_process));
-
-    log_info("Finished copying files: %lu/%lu (%s/%s, %s)\n", copy_process_get_files_processed(copy_process), copy_process_get_total_files(copy_process), formatted_bytes_copied, formatted_size, options);
 
     return 0;
 }
 
-int copier_copy_file(const char* src, const char* dest, copy_process_t* state) {
-	struct stat file_stats;
+int copier_execute(const char* src, const char* dest) {
+    size_t total_files  = 0;
+    size_t total_bytes  = 0;
+    size_t files_copied = 0;
+    size_t bytes_copied = 0;
+    char   formatted_total_bytes[256];
+    char   formatted_bytes_copied[256];
+
+    printf("Counting total number of files to copy...\n");
+
+    if(copier_get_total_stats(src, &total_files, &total_bytes) != 0) {
+        fprintf(stderr, "copier_copy(): Failed to calculate total number of files to copy.\n");
+        return 1;
+    }
+
+    if(total_bytes == 0) {
+        fprintf(stderr, "There's nothing to copy.\n");
+        return 1;
+    }
+
+    format_bytes(total_bytes, formatted_total_bytes);
+    printf("Counted %lu files (%s)\n", (unsigned long) total_files, formatted_total_bytes);
+
+    copier_copy(src, dest, total_files, total_bytes, &files_copied, &bytes_copied);
+
+    format_bytes(bytes_copied, formatted_bytes_copied);
+    format_bytes(total_bytes, formatted_total_bytes);
+    printf("Finished copying files: %lu/%lu (%s/%s)\n", (unsigned long) files_copied, (unsigned long) total_files, formatted_bytes_copied, formatted_total_bytes);
+
+    return 0;
+}
+
+size_t copier_copy_file(const char* src, const char* dest) {
+	struct stat stats;
 	FILE        *src_file;
     FILE        *dest_file;
     char        buffer[BUFFER_SIZE];
@@ -88,168 +190,93 @@ int copier_copy_file(const char* src, const char* dest, copy_process_t* state) {
     size_t      total_bytes_read;
     time_t      start_time;
 
+    if(compat_stat(src, &stats) != 0) {
+        fprintf(stderr, "Failed to acquire stats for %s: %d (%s)\n", dest, errno, strerror(errno));
+        return -1;
+    }
+
     src_file = fopen(src, "rb");
 	if(!src_file) {
-        log_error("Failed to open src file: \"%s\": %d (%s)\n", src, errno, strerror(errno));
-        return 1; 
+        fprintf(stderr, "Failed to open src %s: %d (%s)\n", src, errno, strerror(errno));
+        return -1;
 	}
 
-	if(compat_stat(dest, &file_stats) == 0) {
-        if(S_ISDIR(file_stats.st_mode)) {
-		    fclose(src_file);
-            log_error("Destination path \"%s\" is a directory\n", dest);
-            return 2;
-        }
+    if(S_ISDIR(stats.st_mode)) {
+        fclose(src_file);
+        fprintf(stderr, "Dest %s is a directory\n", dest);
+        return -1;
+    }
 
-        if(!copy_process_get_overwrite(state)) {
-            while(1) {
-                char response[4];
-
-                printf("Destination file \"%s\" exists already. Overwrite? (y/n): ", dest);
-                fflush(stdout);
-
-                if(fgets(response, sizeof(response), stdin) != NULL) {
-                    if(response[0] == 'y' || response[0] == 'Y') {
-                        printf("Overwriting file \"%s\"\n", dest);
-                        break;
-                    }
-                    if(response[0] == 'n' || response[0] == 'N') {
-                        return 0;
-                    }
-                }
-                printf("Invalid input. Please enter 'y' or 'n'.\n");
-            }
-        }
-	}
+    if(determine_overwrite(dest) != 0) {
+        return 0;
+    }
  
 	dest_file = fopen(dest, "wb");
 	if(!dest_file) {
 		fclose(src_file);
-        log_error("Failed to open or create destination file \"%s\": %d (%s)\n", dest, errno, strerror(errno));
-        return 1;
+        fprintf(stderr, "Failed to open or create destination file \"%s\": %d (%s)\n", dest, errno, strerror(errno));
+        return -1;
 	}
 
-    copy_process_increment_files_processed(state);
-    total_bytes_read    = 0;
     start_time          = time(NULL);
+    total_bytes_read     = 0;
 
     while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {
-        unsigned int    progress;
-        const char*     formatted_bytes_copied;
-        const char*     formatted_total_size;
+        unsigned int    file_progress;
         time_t          now;
+        char            formatted_total_bytes_read[256];
+        char            formatted_file_size[256];
 
         if(fwrite(buffer, 1, bytes_read, dest_file) != bytes_read) {
-            log_error("Failed to write to destination file \"%s\": %d (%s)\n", dest, errno, strerror(errno));
+            fprintf(stderr, "Failed to write to destination file \"%s\": %d (%s)\n", dest, errno, strerror(errno));
             break;
         }
 
-        copy_process_increase_bytes_copied(state, bytes_read);
         total_bytes_read    += bytes_read;
-        progress            = (int)((double) total_bytes_read / file_stats.st_size * 100);
+        file_progress       = (int)((double) total_bytes_read / stats.st_size * 100);
         now                 = time(NULL);
 
-        if(difftime(now, start_time) >= 10.0 || progress == 100.0) {
-            formatted_bytes_copied      = copier_format_bytes(copy_process_get_bytes_copied(state));
-            formatted_total_size        = copier_format_bytes(copy_process_get_total_size(state));
+        format_bytes(total_bytes_read, formatted_total_bytes_read);
+        format_bytes(stats.st_size, formatted_file_size);
 
-            log_info("Copying file %lu/%lu: %s -> %s (%3d%%, %s/%s)\n", copy_process_get_files_processed(state), copy_process_get_total_files(state), src, dest, progress, formatted_bytes_copied, formatted_total_size);
-            fflush(stdout);
+        if(difftime(now, start_time) >= 10.0 || file_progress == 100.0) {
+            log_info("-> File progress : %3d%%, %s/%s\n", file_progress, formatted_total_bytes_read, formatted_file_size);
         }
     }
 
     fclose(src_file);
     fclose(dest_file);
 
-	return 0;
+	return total_bytes_read;
 }
 
-int copier_copy_dir(const char* src, const char* dest, copy_process_t* state) {
-    DIR             *dir_to_copy;
-    struct stat     file_stats;
-    struct dirent   *file_entry;
-    int             current_status;
-
-    dir_to_copy = compat_opendir(src);
-    if(!dir_to_copy) {
-        log_error("Failed to open src dir \"%s\": %d (%s)\n", src, errno, strerror(errno));
-        return 3;
-    }
-
-    if(compat_stat(dest, &file_stats) != 0) {
-        if(compat_mkdir(dest, 0755) == -1) {
-            compat_closedir(dir_to_copy);
-            log_error("Failed to create destination directdory \"%s\": %d (%s)\n", dest, errno, strerror(errno));
-            return 4;
-        }
-    } else if(!S_ISDIR(file_stats.st_mode)) {
-        compat_closedir(dir_to_copy);
-        log_error("Destination path \"%s\" is not a directory\n", dest);
-        return 5;
-    }
-
-    while ((file_entry = compat_readdir(dir_to_copy)) != NULL) {
-        char entry_source_path[1024];
-        char entry_destination_path[1024];
-        
-        if(strcmp(file_entry->d_name, ".") == 0 || strcmp(file_entry->d_name, "..") == 0) {
-            /* Stay in the current directory, don't go back up. */
-            continue;
-        }
-
-        sprintf(entry_source_path, "%s/%s", src, file_entry->d_name);
-        sprintf(entry_destination_path, "%s/%s", dest, file_entry->d_name);
-
-        if(compat_stat(entry_source_path, &file_stats) != 0) {
-            log_error("Warning: Could not get info for '%s', skipping.\n", src);
-            continue;
-        }
-
-        if(S_ISDIR(file_stats.st_mode)) {
-            current_status = copier_copy_dir(entry_source_path, entry_destination_path, state);
-        } else {
-            current_status = copier_copy_file(entry_source_path, entry_destination_path, state);
-        }
-
-        if(current_status != 0) {
-            break;
-        }
-    }
-
-    compat_closedir(dir_to_copy);
-    return current_status;
-}
-
-/** 
- * copy_get_total_stats: Populate the copy process with the total number of files and bytes to copy.
- * @src The path to the file or dir being traversed.
- * @copy_process A pointer to the current copy process (cannot be NULL).
- *
- * Returns a code indicating the outcome of the operation:
- * 0 = Success.
- * 1 = Copy process pointer is NULL.
- * 2 = Failed to acquire stats for src. The resource probably doesn't exist.
- * 3 = Failed to open src dir.
- */
-int copier_get_total_stats(const char* src, copy_process_t* copy_process) {
-    struct stat     file_stats;
+int copier_get_total_stats(const char* src, size_t* total_files, size_t* total_bytes) {
+    struct stat     stats;
     struct dirent*  entry;
     char            sub_path[1024];
 
-    if(!copy_process) {
+    if(!total_files) {
+        fprintf(stderr, "total_files cannot be NULL\n");
         return 1;
     }
 
-    if(compat_stat(src, &file_stats) != 0) {
-        return 2;
+    if(!total_bytes) {
+        fprintf(stderr, "total_bytes cannot be NULL\n");
+        return 1;
     }
 
-    if(S_ISDIR(file_stats.st_mode)) {
+
+    if(compat_stat(src, &stats) != 0) {
+        fprintf(stderr, "Failed to acquire stats for source \"%s\": %d (%s)\n", src, errno, strerror(errno));
+        return 1;
+    }
+
+    if(S_ISDIR(stats.st_mode)) {
         DIR *dir = compat_opendir(src);
         if(!dir) {
-            return 3;
+            fprintf(stderr, "Failed to open %s: %d (%s)\n", src, errno, strerror(errno));
+            return 1;
         }
-
 
         while ((entry = compat_readdir(dir)) != NULL) {
             if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
@@ -257,20 +284,23 @@ int copier_get_total_stats(const char* src, copy_process_t* copy_process) {
             }
 
             sprintf(sub_path, "%s/%s", src, entry->d_name);
-            if(compat_stat(sub_path, &file_stats) == 0) {
-                if(S_ISDIR(file_stats.st_mode)) {
-                    copier_get_total_stats(sub_path, copy_process);
-                } else {
-                    copy_process_increase_total_size(copy_process, file_stats.st_size);
-                    copy_process_increase_total_files(copy_process, 1);
-                }
+            if(compat_stat(sub_path, &stats) != 0) {
+                fprintf(stderr, "Failed to acquire file stats for sub path %s: %d (%s)\n", sub_path, errno, strerror(errno));
+                return 1;
+            }
+
+             if(S_ISDIR(stats.st_mode)) {
+                copier_get_total_stats(sub_path, total_files, total_bytes);
+            } else {
+                *total_files    += 1;
+                *total_bytes    += stats.st_size;
             }
         }
 
         compat_closedir(dir);
     } else {
-        copy_process_increase_total_size(copy_process, file_stats.st_size);
-        copy_process_increase_total_files(copy_process, 1);
+        *total_files    += 1;
+        *total_bytes    += stats.st_size;
     }
 
     return 0;

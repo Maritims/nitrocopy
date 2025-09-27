@@ -41,8 +41,9 @@ add_compile_options(
 )
 
 # Debug vs release mode
-set(CMAKE_C_FLAGS_DEBUG "-O0 -g -DNITRO_DEBUG")  # Disable optimisations (o0) and include debug symbols (-g).
-set(CMAKE_C_FLAGS_RELEASE "-O2")                # Optimise for speed.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_USE_32BIT_TIME_T")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -O0 -g -DNITRO_DEBUG")  # Disable optimisations (o0) and include debug symbols (-g).
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O2")                # Optimise for speed.
 
 # -----------------------------------------------
 # Include directories

@@ -10,5 +10,3 @@ function(add_c_test name)
         add_test(NAME ${name} COMMAND ${name})
     endif()
 endfunction()
-
-add_c_test(test_copy_process_init_should_return_with_initialised_members)
