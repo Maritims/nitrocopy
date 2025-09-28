@@ -1,5 +1,7 @@
 function(add_c_test name)
-    add_executable(${name} ${name}.c)
+    add_executable(${name}
+        test_runner.c
+        ${name}.c)
     target_link_libraries(${name} PRIVATE copier)
 
     if(UNIX AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -10,3 +12,5 @@ function(add_c_test name)
         add_test(NAME ${name} COMMAND ${name})
     endif()
 endfunction()
+
+add_c_test(fletcher32_tests)
