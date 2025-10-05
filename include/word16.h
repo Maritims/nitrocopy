@@ -3,16 +3,7 @@
 
 #include <stdio.h>
 
-/**
- * word16_count(): Count the number of 16 bit words in the input string.
- * Add 1 to the length then divide by 2 to ensure that any leftover byte get its own word.
- * Without adding 1 an odd-length string would lose its last byte.
- *
- * @input: The string to count number of words in.
- *
- * @return The number of 16-bit words in the input string.
- */
-size_t word16_count(const char* input);
+size_t word16_count(size_t length);
 
 /**
  * word16_create(): Create 16 bit words in little endian order, low byte first and high byte second.
@@ -22,6 +13,6 @@ size_t word16_count(const char* input);
  *
  * @return THe number of 16-bit words in the input string.
  */
-size_t word16_create(const char* input, unsigned short* out_words);
+size_t word16_create(const unsigned char* input, size_t length, unsigned short* output);
 
 #endif

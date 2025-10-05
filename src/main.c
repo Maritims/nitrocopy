@@ -1,29 +1,33 @@
 #include "copier.h"
+#include "getopt.h"
 #include "nitro_version.h"
 #include "runtime.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <getopt.h>
 
-int overwrite = 0;
+int overwrite                                   = 0;
+copy_existing_action_t g_default_copy_action    = COPY_ACTION_UNSET;
 
 int main(int argc, char *argv[]) {
     int opt;
     char* src_path  = NULL;
     char* dest_path = NULL;
 
-    static struct option long_options[] = {
-        {"overwrite", no_argument, 0, 'o'},
-        {"help", no_argument, 0, 'h'},
-        {0, 0, 0, 0}
-    };
-
-    while ((opt = getopt_long(argc, argv, "oh", long_options, NULL)) != -1) {
+    while ((opt = getopt(argc, argv, "a:vh")) != -1) {
         switch(opt) {
-            case 'o':
-                overwrite = 1;
+            case 'a':
+                if(optarg[0] == 'r') {
+                    g_default_copy_action = COPY_RESUME;
+                } else if(optarg[0] == 's') {
+                    g_default_copy_action = COPY_SKIP;
+                } else if(optarg[0] == 'o') {
+                    g_default_copy_action = COPY_OVERWRITE;
+                } else {
+                    fprintf(stderr, "Invalid argument for -a: %s\n", optarg);
+                    return 1;
+                }
             break;
             case 'v':
                 printf("NitroCopy version: %s\nhttps://github.com/maritims/nitrocopy\n\nWritten by Martin Severin Steffensen.\n", NITRO_VERSION_STRING);
@@ -32,9 +36,9 @@ int main(int argc, char *argv[]) {
                 printf("NitroCopy %s - A file copy utility for some modern systems and some not so modern systems.\n\n", NITRO_VERSION_STRING);
                 printf("Usage: NitroCopy [OPTIONS] <source_path> <destination_path>\n");
                 printf("Options:\n");
-                printf("    -o, --overwrite     Overwrite destination files without prompting.\n");
+                printf("    -a, --action        Default action to take when a destination file exists: [r]esume, [s]kip or [o]verwrite.\n");
                 printf("    -v, --version       Show version.\n");
-                printf("    -h, --help          Display this help message and exit.\n");
+                printf("    -h, --help          Display this help: message and exit.\n");
 
                 printf("\nFor more information:\n");
                 printf("    Documentation:  https://github.com/maritims/nitrocopy#readme\n");

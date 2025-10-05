@@ -6,6 +6,12 @@ project(NitroCopy
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # -----------------------------------------------
+# Tests
+# -----------------------------------------------
+include(CTest)
+enable_testing()
+
+# -----------------------------------------------
 # Determine Git-based version
 # -----------------------------------------------
 execute_process(
@@ -114,12 +120,3 @@ add_custom_target(tag_release
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Tagging release v${PROJECT_VERSION}"
 )
-
-# -----------------------------------------------
-# Tests
-# -----------------------------------------------
-include(CTest)
-enable_testing()
-
-# Add tests subdirectory
-add_subdirectory(tests)

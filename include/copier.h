@@ -3,6 +3,16 @@
 
 #include <stdio.h>
 
+typedef enum {
+    COPY_RESUME,
+    COPY_OVERWRITE,
+    COPY_SKIP
+} copy_existing_action_t;
+
+extern copy_existing_action_t g_default_copy_action;
+
+#define COPY_ACTION_UNSET ((copy_existing_action_t)-1)
+
 typedef void (*ProgressCallback)(void);
 
 int copier_copy(const char* src, const char* dest, size_t total_files, size_t total_bytes, size_t* files_copied, size_t* bytes_copied);
